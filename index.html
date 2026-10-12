@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catálogo de Productos</title>
+  <!-- Tailwind CSS para diseño moderno -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PapaParse para leer el CSV de Google Sheets -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+  <!-- Encabezado y Barra de Búsqueda -->
+  <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur border-b border-slate-800 shadow-md">
+    <div class="max-w-6xl mx-auto px-4 py-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+          <span>🛍️</span> Catálogo de Productos
+        </h1>
+        <span id="product-count" class="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-full border border-slate-700">Cargando...</span>
+      </div>
+
+      <!-- Buscador -->
+      <div class="relative">
+        <input 
+          type="text" 
+          id="search-input" 
+          placeholder="Buscar producto, categoría, modelo..." 
+          class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-500"
+        >
+      </div>
+
+      <!-- Filtros por categoría dinámicos -->
+      <div id="category-filters" class="flex gap-2 overflow-x-auto pb-1 text-xs scrollbar-none">
+        <button class="cat-btn active bg-indigo-600 text-white px-3 py-1.5 rounded-lg whitespace-nowrap font-medium" data-cat="all">Todos</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Contenedor Principal de Productos -->
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    <div id="loading" class="text-center py-20 text-slate-400">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent mb-3"></div>
+      <p class="text-sm">Cargando catálogo en tiempo real...</p>
+    </div>
+
+    <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 hidden">
+      <!-- Las tarjetas se generan automáticamente aquí -->
+    </div>
+
+    <div id="no-results" class="hidden text-center py-16 text-slate-500">
+      <p class="text-lg">No se encontraron productos con ese criterio.</p>
+    </div>
+  </main>
+
+  <script>
+    // ==========================================
+    // ⚙️ CONFIGURACIÓN PERSONALIZADA
+    // ==========================================
+    const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRjvUSc5Z3iF9KnIU4h-QIK_Rrh3a6BF2C1xxpDizwCjaE30lTr5Qn0N6BCHAZCMnfMLv56ANEn8MlD/pub?gid=0&single=true&output=csv';
+    const WHATSAPP_PHONE = '584243574571'; // Tu número con código de país (sin +)
+
+    let allProducts = [];
+    let activeCategory = 'all';
+
+    // Cargar datos desde Google Sheets
+    function loadProducts() {
+      Papa.parse(GOOGLE_SHEET_CSV_URL, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+          allProducts = results.data.filter(item => item.Producto && item.Producto.trim() !== '');
+          renderCategories();
+          renderCards(allProducts);
+          document.getElementById('loading').classList.add('hidden');
+          document.getElementById('product-grid').classList.remove('hidden');
+        },
+        error: function(err) {
+          console.error("Error al cargar la hoja:", err);
+          document.getElementById('loading').innerHTML = `
+            <p class="text-red-400">Hubo un error cargando el catálogo.</p>
+            <p class="text-xs text-slate-500 mt-1">Verifica que la hoja esté publicada en la web como CSV.</p>
+          `;
+        }
+      });
+    }
+
+    // Renderizar categorías únicas
+    function renderCategories() {
+      const container = document.getElementById('category-filters');
+      const categories = ['all', ...new Set(allProducts.map(p => p['Categoría']).filter(Boolean))];
+      
+      container.innerHTML = categories.map(cat => `
+        <button 
+          class="cat-btn ${cat === activeCategory ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-300 border border-slate-800'} px-3 py-1.5 rounded-lg whitespace-nowrap font-medium transition hover:border-slate-700" 
+          data-cat="${cat}">
+          ${cat === 'all' ? 'Todos' : cat}
+        </button>
+      `).join('');
+
+      document.querySelectorAll('.cat-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          activeCategory = e.target.getAttribute('data-cat');
+          document.querySelectorAll('.cat-btn').forEach(b => {
+            b.className = 'cat-btn bg-slate-900 text-slate-300 border border-slate-800 px-3 py-1.5 rounded-lg whitespace-nowrap font-medium';
+          });
+          e.target.className = 'cat-btn bg-indigo-600 text-white px-3 py-1.5 rounded-lg whitespace-nowrap font-medium';
+          filterAndRender();
+        });
+      });
+    }
+
+    // Renderizar tarjetas de productos
+    function renderCards(products) {
+      const grid = document.getElementById('product-grid');
+      const count = document.getElementById('product-count');
+      const noResults = document.getElementById('no-results');
+
+      count.textContent = `${products.length} disponibles`;
+
+      if (products.length === 0) {
+        grid.innerHTML = '';
+        noResults.classList.remove('hidden');
+        return;
+      }
+      noResults.classList.add('hidden');
+
+      grid.innerHTML = products.map(item => {
+        const estado = item.Estado ? item.Estado.trim().toLowerCase() : '';
+        let badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+        let isAgotado = false;
+
+        if (estado.includes('agotado')) {
+          badgeColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+          isAgotado = true;
+        } else if (estado.includes('pocas')) {
+          badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        }
+
+        const imagenUrl = item['URL de Imagen'] && item['URL de Imagen'].startsWith('http') 
+          ? item['URL de Imagen'] 
+          : 'https://placehold.co/400x300/1e293b/94a3b8?text=Sin+Imagen';
+
+        const mensajeWA = encodeURIComponent(`Hola, me interesa consultar por: ${item.Producto} (${item['Precio ($)']})`);
+        const waLink = `https://wa.me/${WHATSAPP_PHONE}?text=${mensajeWA}`;
+
+        return `
+          <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between hover:border-slate-700 transition">
+            <div>
+              <div class="relative w-full h-44 bg-slate-950 overflow-hidden">
+                <img 
+                  src="${imagenUrl}" 
+                  alt="${item.Producto}" 
+                  class="w-full h-full object-cover"
+                  onerror="this.src='https://placehold.co/400x300/1e293b/94a3b8?text=Sin+Imagen'"
+                >
+                <span class="absolute top-2 right-2 text-[11px] font-medium px-2 py-0.5 rounded border backdrop-blur ${badgeColor}">
+                  ${item.Estado || 'Disponible'}
+                </span>
+              </div>
+              <div class="p-3.5 space-y-1.5">
+                <p class="text-[11px] font-medium text-indigo-400 uppercase tracking-wider">${item['Categoría'] || 'General'}</p>
+                <h3 class="font-semibold text-slate-100 text-sm line-clamp-2">${item.Producto}</h3>
+                <p class="text-xs text-slate-400 line-clamp-2">${item.Descripción || ''}</p>
+              </div>
+            </div>
+            
+            <div class="p-3.5 pt-0 mt-2 space-y-2.5">
+              <div class="text-lg font-bold text-white">${item['Precio ($)'] || ''}</div>
+              <a 
+                href="${isAgotado ? '#' : waLink}" 
+                target="${isAgotado ? '_self' : '_blank'}"
+                class="block w-full text-center text-xs py-2 px-3 rounded-lg font-medium transition ${
+                  isAgotado 
+                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                }">
+                ${isAgotado ? 'Agotado' : '💬 Consultar al WhatsApp'}
+              </a>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Filtrar búsqueda y categoría
+    function filterAndRender() {
+      const term = document.getElementById('search-input').value.toLowerCase().trim();
+      const filtered = allProducts.filter(item => {
+        const matchesCategory = activeCategory === 'all' || item['Categoría'] === activeCategory;
+        const matchesSearch = 
+          (item.Producto && item.Producto.toLowerCase().includes(term)) ||
+          (item['Categoría'] && item['Categoría'].toLowerCase().includes(term)) ||
+          (item.Descripción && item.Descripción.toLowerCase().includes(term));
+        return matchesCategory && matchesSearch;
+      });
+      renderCards(filtered);
+    }
+
+    document.getElementById('search-input').addEventListener('input', filterAndRender);
+
+    // Inicializar
+    loadProducts();
+  </script>
+</body>
+</html>
