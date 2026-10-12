@@ -137,6 +137,8 @@
           isAgotado = true;
         } else if (estado.includes('pocas')) {
           badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        } else if (estado.includes('encargo')) {
+          badgeColor = 'bg-sky-500/10 text-sky-400 border-sky-500/20';
         }
 
         const imagenUrl = item['URL de Imagen'] && item['URL de Imagen'].startsWith('http') 
