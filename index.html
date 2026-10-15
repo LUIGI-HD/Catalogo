@@ -11,27 +11,66 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
 
-  <!-- Encabezado y Barra de Búsqueda -->
-  <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur border-b border-slate-800 shadow-md">
-    <div class="max-w-6xl mx-auto px-4 py-4 space-y-3">
-      <div class="flex items-center justify-between">
-        <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+  <!-- Encabezado y Controles -->
+  <header class="sticky top-0 z-30 bg-slate-900/95 backdrop-blur border-b border-slate-800 shadow-md">
+    <div class="max-w-6xl mx-auto px-4 py-3.5 space-y-3">
+      
+      <!-- Fila Superior: Título + Contador + Botón de Info -->
+      <div class="flex items-center justify-between gap-2">
+        <h1 class="text-lg sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
           <span>🛍️</span> Catálogo de Productos
         </h1>
-        <span id="product-count" class="text-xs bg-slate-800 text-slate-400 px-2.5 py-1 rounded-full border border-slate-700">Cargando...</span>
+        <div class="flex items-center gap-2">
+          <span id="product-count" class="text-xs bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full border border-slate-700 font-medium">Cargando...</span>
+          <button 
+            onclick="openInfoModal()" 
+            class="text-xs bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 px-3 py-1.5 rounded-full font-medium transition flex items-center gap-1.5"
+          >
+            <span>ℹ️</span> <span class="hidden sm:inline">Info y</span> Entregas
+          </button>
+        </div>
       </div>
 
-      <!-- Buscador -->
-      <div class="relative">
-        <input 
-          type="text" 
-          id="search-input" 
-          placeholder="Buscar producto, categoría, modelo..." 
-          class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-500"
-        >
+      <!-- Fila de Búsqueda, Ordenamiento y Filtro de Disponibilidad -->
+      <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+        <!-- Buscador -->
+        <div class="sm:col-span-6 relative">
+          <input 
+            type="text" 
+            id="search-input" 
+            placeholder="Buscar producto, categoría, modelo..." 
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-white placeholder-slate-500"
+          >
+        </div>
+
+        <!-- Filtro por Estado -->
+        <div class="sm:col-span-3">
+          <select 
+            id="status-filter" 
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+          >
+            <option value="all">📦 Todos los estados</option>
+            <option value="disponible">🟢 Solo Disponibles</option>
+            <option value="encargo">🔵 Por encargo</option>
+            <option value="pocas">🟡 Pocas unidades</option>
+          </select>
+        </div>
+
+        <!-- Ordenar por Precio / Nombre -->
+        <div class="sm:col-span-3">
+          <select 
+            id="sort-select" 
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+          >
+            <option value="default">✨ Orden por defecto</option>
+            <option value="price-asc">💲 Precio: Menor a Mayor</option>
+            <option value="price-desc">💲 Precio: Mayor a Menor</option>
+            <option value="name-asc">🔤 Nombre: A - Z</option>
+          </select>
+        </div>
       </div>
 
-      <!-- Filtros por categoría -->
+      <!-- Filtros por Categoría -->
       <div id="category-filters" class="flex gap-2 overflow-x-auto pb-1 text-xs scrollbar-none">
         <button class="cat-btn active bg-indigo-600 text-white px-3 py-1.5 rounded-lg whitespace-nowrap font-medium" data-cat="all">Todos</button>
       </div>
@@ -46,7 +85,18 @@
     </div>
 
     <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 hidden">
-      <!-- Tarjetas automáticas -->
+      <!-- Tarjetas generadas dinámicamente -->
+    </div>
+
+    <!-- Botón de Paginación ("Cargar más") -->
+    <div id="load-more-container" class="hidden text-center mt-8">
+      <button 
+        onclick="loadMoreProducts()" 
+        class="bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 px-6 py-2.5 rounded-xl text-sm font-medium transition shadow"
+      >
+        Mostrar más productos ↓
+      </button>
+      <p id="pagination-info" class="text-xs text-slate-500 mt-2"></p>
     </div>
 
     <div id="no-results" class="hidden text-center py-16 text-slate-500">
@@ -54,43 +104,76 @@
     </div>
   </main>
 
-  <!-- MODAL / VISOR DE IMÁGENES EN GRANDE Y DETALLES -->
-  <div id="product-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-5" onclick="closeModalOnBackdrop(event)">
-    <div class="relative max-w-2xl w-full bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+  <!-- Botón Flotante para Subir -->
+  <button 
+    id="scroll-top-btn" 
+    onclick="window.scrollTo({top: 0, behavior: 'smooth'})" 
+    class="fixed bottom-5 right-5 z-40 hidden bg-indigo-600 hover:bg-indigo-500 text-white w-11 h-11 rounded-full shadow-lg flex items-center justify-center text-lg font-bold transition"
+    title="Volver arriba"
+  >
+    ↑
+  </button>
+
+  <!-- ========================================== -->
+  <!-- 🖼️ MODAL DE PRODUCTO (2 COLUMNAS SIN BORDES) -->
+  <!-- ========================================== -->
+  <div id="product-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-2 sm:p-4" onclick="closeModalOnBackdrop(event)">
+    <div class="relative max-w-4xl w-full bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row max-h-[94vh]">
       
       <!-- Botón Cerrar -->
-      <button onclick="closeModal()" class="absolute top-3 right-3 z-30 bg-slate-800/80 hover:bg-slate-700 text-white w-9 h-9 rounded-full flex items-center justify-center text-lg border border-slate-700 transition">✕</button>
+      <button onclick="closeModal()" class="absolute top-3 right-3 z-30 bg-black/70 hover:bg-black text-white w-9 h-9 rounded-full flex items-center justify-center text-base border border-white/20 transition">✕</button>
 
-      <!-- Visor de imagen grande con flechas -->
-      <div id="modal-img-container" class="relative w-full h-64 sm:h-96 bg-black flex items-center justify-center overflow-hidden select-none">
-        <img id="modal-img" src="" alt="" class="max-h-full max-w-full object-contain transition-all duration-200">
+      <!-- COLUMNA IZQUIERDA: Imagen Grande Optimizada -->
+      <div id="modal-img-container" class="relative w-full md:w-[54%] h-[52vh] sm:h-[60vh] md:h-[80vh] bg-slate-950 flex items-center justify-center overflow-hidden select-none">
+        <!-- Fondo difuminado dinámico para eliminar bordes negros -->
+        <img id="modal-bg-blur" src="" alt="" class="absolute inset-0 w-full h-full object-cover blur-2xl opacity-35 scale-110 pointer-events-none">
         
-        <!-- Flechas Navegación -->
-        <button id="modal-prev-btn" onclick="prevImage(event)" class="absolute left-2.5 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/90 text-white w-10 h-10 rounded-full flex items-center justify-center border border-white/20 text-xl transition">❮</button>
-        <button id="modal-next-btn" onclick="nextImage(event)" class="absolute right-2.5 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/90 text-white w-10 h-10 rounded-full flex items-center justify-center border border-white/20 text-xl transition">❯</button>
+        <!-- Imagen Principal -->
+        <img id="modal-img" src="" alt="" class="relative z-10 w-full h-full object-cover transition-all duration-200">
+        
+        <!-- Botón para alternar entre Llenar bordes (cover) o Ver entera (contain) -->
+        <button 
+          onclick="toggleImageFit(event)" 
+          id="fit-toggle-btn"
+          class="absolute top-3 left-3 z-20 bg-black/65 hover:bg-black/90 text-slate-200 text-[11px] px-2.5 py-1 rounded-lg border border-white/15 backdrop-blur transition"
+        >
+          ⛶ Ajustar foto
+        </button>
 
-        <!-- Indicador de fotos (ej: 1 / 3) -->
-        <span id="modal-counter" class="absolute bottom-2.5 left-1/2 -translate-x-1/2 bg-black/70 text-slate-200 text-xs px-3 py-1 rounded-full border border-white/10 font-medium">1 / 1</span>
+        <!-- Flechas de Navegación -->
+        <button id="modal-prev-btn" onclick="prevImage(event)" class="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 bg-black/65 hover:bg-black/90 text-white w-10 h-10 rounded-full flex items-center justify-center border border-white/20 text-xl transition">❮</button>
+        <button id="modal-next-btn" onclick="nextImage(event)" class="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 bg-black/65 hover:bg-black/90 text-white w-10 h-10 rounded-full flex items-center justify-center border border-white/20 text-xl transition">❯</button>
+
+        <!-- Contador de Fotos -->
+        <span id="modal-counter" class="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 bg-black/75 text-slate-100 text-xs px-3 py-1 rounded-full border border-white/15 font-medium">1 / 1</span>
       </div>
 
-      <!-- Miniaturas inferiores para saltar de foto -->
-      <div id="modal-thumbs" class="flex gap-2 p-2.5 bg-slate-950 overflow-x-auto border-b border-slate-800"></div>
+      <!-- COLUMNA DERECHA: Miniaturas + Detalles + Botón WhatsApp -->
+      <div class="w-full md:w-[46%] flex flex-col justify-between p-4 sm:p-6 overflow-y-auto bg-slate-900 space-y-4">
+        <div class="space-y-4">
+          <!-- Miniaturas -->
+          <div id="modal-thumbs" class="flex gap-2 overflow-x-auto pb-2 border-b border-slate-800 scrollbar-thin"></div>
 
-      <!-- Información del Producto en el Modal -->
-      <div class="p-4 sm:p-5 overflow-y-auto space-y-3">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <span id="modal-category" class="text-[11px] font-semibold text-indigo-400 uppercase tracking-wider"></span>
-            <h2 id="modal-title" class="text-lg sm:text-xl font-bold text-white leading-snug"></h2>
+          <!-- Categoría, Título y Estado -->
+          <div class="flex items-start justify-between gap-2 pt-1">
+            <div>
+              <span id="modal-category" class="text-[11px] font-semibold text-indigo-400 uppercase tracking-wider block"></span>
+              <h2 id="modal-title" class="text-lg sm:text-xl font-bold text-white leading-snug mt-0.5"></h2>
+            </div>
+            <span id="modal-badge" class="text-xs font-medium px-2.5 py-1 rounded border whitespace-nowrap shrink-0"></span>
           </div>
-          <span id="modal-badge" class="text-xs font-medium px-2.5 py-1 rounded border whitespace-nowrap"></span>
+
+          <!-- Descripción -->
+          <p id="modal-desc" class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line"></p>
         </div>
 
-        <p id="modal-desc" class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line"></p>
-
-        <div class="flex items-center justify-between pt-3 border-t border-slate-800 gap-4">
-          <span id="modal-price" class="text-2xl font-bold text-white"></span>
-          <a id="modal-wa-btn" href="#" target="_blank" class="px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm text-white bg-emerald-600 hover:bg-emerald-500 transition shadow">
+        <!-- Precio y Acción -->
+        <div class="pt-4 border-t border-slate-800 space-y-3">
+          <div class="flex items-baseline justify-between">
+            <span class="text-xs text-slate-400">Precio:</span>
+            <span id="modal-price" class="text-2xl sm:text-3xl font-bold text-white"></span>
+          </div>
+          <a id="modal-wa-btn" href="#" target="_blank" class="block w-full text-center py-3 px-4 rounded-xl font-semibold text-sm text-white bg-emerald-600 hover:bg-emerald-500 transition shadow-lg">
             💬 Consultar al WhatsApp
           </a>
         </div>
@@ -99,44 +182,111 @@
     </div>
   </div>
 
+  <!-- ========================================== -->
+  <!-- ℹ️ MODAL DE INFORMACIÓN Y ENTREGAS         -->
+  <!-- ========================================== -->
+  <div id="info-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4" onclick="if(event.target.id==='info-modal') closeInfoModal()">
+    <div class="relative max-w-lg w-full bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <span>📦</span> Información de Compra y Entregas
+        </h3>
+        <button onclick="closeInfoModal()" class="text-slate-400 hover:text-white text-lg">✕</button>
+      </div>
+
+      <div id="info-modal-content" class="space-y-3.5 text-xs sm:text-sm text-slate-300 leading-relaxed">
+        <!-- Se llena desde la configuración -->
+      </div>
+
+      <div class="pt-3 border-t border-slate-800 flex justify-end">
+        <button onclick="closeInfoModal()" class="bg-slate-800 hover:bg-slate-700 text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-xl transition">
+          Entendido
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ==========================================
     // ⚙️ CONFIGURACIÓN PERSONALIZADA
     // ==========================================
-    const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRjvUSc5Z3iF9KnIU4h-QIK_Rrh3a6BF2C1xxpDizwCjaE30lTr5Qn0N6BCHAZCMnfMLv56ANEn8MlD/pub?gid=0&single=true&output=csv';
-    const WHATSAPP_PHONE = '584243574571'; // Tu número sin el +
+    const GOOGLE_SHEET_CSV_URL = 'PEGA_AQUI_TU_ENLACE_CSV_PUBLICO';
+    const WHATSAPP_PHONE = '58XXXXXXXXXX'; // Tu número con código de país (sin +)
+    const PRODUCTS_PER_PAGE = 24; // Cantidad de productos que cargan por bloque
+
+    // Textos de la ventana "Info y Entregas" (Puedes editarlos a tu gusto)
+    const STORE_INFO = {
+      entregas: "Realizamos entregas personales en zonas acordadas y envíos a nivel nacional (MRW / Zoom / Tealca).",
+      encargos: "Los productos marcados 'Por encargo' se solicitan bajo pedido. Consulta disponibilidad de tallas, colores y tiempos de llegada por nuestro WhatsApp.",
+      pagos: "Aceptamos Efectivo ($), Pago Móvil, Transferencias y Binance / Zelle."
+    };
 
     let allProducts = [];
     let currentFiltered = [];
+    let visibleCount = PRODUCTS_PER_PAGE;
     let activeCategory = 'all';
 
-    // Estado del modal
+    // Estado del modal de fotos
     let activeModalItem = null;
     let activeImageIndex = 0;
+    let imageFitCover = true; // true = llena el cuadro sin bordes (cover), false = foto completa (contain)
 
-    // Obtener array de imágenes
+    // Cargar textos de Info
+    document.getElementById('info-modal-content').innerHTML = `
+      <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+        <p class="font-semibold text-indigo-400 mb-1">🚚 Entregas y Envíos</p>
+        <p>${STORE_INFO.entregas}</p>
+      </div>
+      <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+        <p class="font-semibold text-sky-400 mb-1">🔵 Pedidos Por Encargo</p>
+        <p>${STORE_INFO.encargos}</p>
+      </div>
+      <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+        <p class="font-semibold text-emerald-400 mb-1">💳 Métodos de Pago</p>
+        <p>${STORE_INFO.pagos}</p>
+      </div>
+    `;
+
+    // Convertir precio en texto (ej: "$1.200,00" o "$28,60") a número para ordenar
+    function parsePrice(str) {
+      if (!str) return 0;
+      let clean = String(str).replace(/[^0-9.,]/g, '').trim();
+      if (!clean) return 0;
+      if (clean.includes('.') && clean.includes(',')) {
+        if (clean.lastIndexOf(',') > clean.lastIndexOf('.')) {
+          clean = clean.replace(/\./g, '').replace(',', '.');
+        } else {
+          clean = clean.replace(/,/g, '');
+        }
+      } else if (clean.includes(',')) {
+        clean = clean.replace(',', '.');
+      }
+      return parseFloat(clean) || 0;
+    }
+
+    // Obtener lista de imágenes
     function parseImages(item) {
       const raw = item['URL de Imagen'] || '';
       const list = raw.split(/[,\n]/).map(u => u.trim()).filter(u => u.startsWith('http'));
-      return list.length > 0 ? list : ['https://placehold.co/600x450/1e293b/94a3b8?text=Sin+Imagen'];
+      return list.length > 0 ? list : ['https://placehold.co/600x700/1e293b/94a3b8?text=Sin+Imagen'];
     }
 
-    // Estilo del badge según estado
+    // Estilo según estado
     function getStatusInfo(estadoStr) {
       const est = (estadoStr || 'Disponible').trim().toLowerCase();
       if (est.includes('agotado')) {
-        return { text: estadoStr || 'Agotado', color: 'bg-rose-500/10 text-rose-400 border-rose-500/20', isAgotado: true };
+        return { text: estadoStr || 'Agotado', color: 'bg-rose-500/15 text-rose-400 border-rose-500/30', isAgotado: true, key: 'agotado' };
       }
       if (est.includes('pocas')) {
-        return { text: estadoStr || 'Pocas unidades', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20', isAgotado: false };
+        return { text: estadoStr || 'Pocas unidades', color: 'bg-amber-500/15 text-amber-400 border-amber-500/30', isAgotado: false, key: 'pocas' };
       }
       if (est.includes('encargo')) {
-        return { text: estadoStr || 'Por encargo', color: 'bg-sky-500/10 text-sky-400 border-sky-500/20', isAgotado: false };
+        return { text: estadoStr || 'Por encargo', color: 'bg-sky-500/15 text-sky-400 border-sky-500/30', isAgotado: false, key: 'encargo' };
       }
-      return { text: estadoStr || 'Disponible', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', isAgotado: false };
+      return { text: estadoStr || 'Disponible', color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', isAgotado: false, key: 'disponible' };
     }
 
-    // Cargar datos de Sheets
+    // Cargar datos de Google Sheets
     function loadProducts() {
       Papa.parse(GOOGLE_SHEET_CSV_URL, {
         download: true,
@@ -144,9 +294,8 @@
         skipEmptyLines: true,
         complete: function(results) {
           allProducts = results.data.filter(item => item.Producto && item.Producto.trim() !== '');
-          currentFiltered = [...allProducts];
           renderCategories();
-          renderCards(currentFiltered);
+          filterAndRender();
           document.getElementById('loading').classList.add('hidden');
           document.getElementById('product-grid').classList.remove('hidden');
         },
@@ -154,13 +303,13 @@
           console.error("Error al cargar la hoja:", err);
           document.getElementById('loading').innerHTML = `
             <p class="text-red-400">Hubo un error cargando el catálogo.</p>
-            <p class="text-xs text-slate-500 mt-1">Verifica que la hoja esté publicada en la web como CSV.</p>
+            <p class="text-xs text-slate-500 mt-1">Verifica que el enlace CSV público esté bien colocado.</p>
           `;
         }
       });
     }
 
-    // Renderizar categorías
+    // Botones de categorías
     function renderCategories() {
       const container = document.getElementById('category-filters');
       const categories = ['all', ...new Set(allProducts.map(p => p['Categoría']).filter(Boolean))];
@@ -185,22 +334,74 @@
       });
     }
 
-    // Renderizar tarjetas
-    function renderCards(products) {
+    // Filtrar, ordenar y reiniciar paginación
+    function filterAndRender() {
+      const term = document.getElementById('search-input').value.toLowerCase().trim();
+      const statusVal = document.getElementById('status-filter').value;
+      const sortVal = document.getElementById('sort-select').value;
+
+      let filtered = allProducts.filter(item => {
+        const matchesCategory = activeCategory === 'all' || item['Categoría'] === activeCategory;
+        const statusInfo = getStatusInfo(item.Estado);
+        const matchesStatus = statusVal === 'all' || statusInfo.key === statusVal;
+        const matchesSearch = 
+          (item.Producto && item.Producto.toLowerCase().includes(term)) ||
+          (item['Categoría'] && item['Categoría'].toLowerCase().includes(term)) ||
+          (item.Descripción && item.Descripción.toLowerCase().includes(term));
+        return matchesCategory && matchesStatus && matchesSearch;
+      });
+
+      // Ordenar (enviando Agotados al final por defecto)
+      filtered.sort((a, b) => {
+        const aAgotado = getStatusInfo(a.Estado).isAgotado ? 1 : 0;
+        const bAgotado = getStatusInfo(b.Estado).isAgotado ? 1 : 0;
+        if (aAgotado !== bAgotado) return aAgotado - bAgotado;
+
+        if (sortVal === 'price-asc') return parsePrice(a['Precio ($)']) - parsePrice(b['Precio ($)']);
+        if (sortVal === 'price-desc') return parsePrice(b['Precio ($)']) - parsePrice(a['Precio ($)']);
+        if (sortVal === 'name-asc') return (a.Producto || '').localeCompare(b.Producto || '');
+        return 0;
+      });
+
+      currentFiltered = filtered;
+      visibleCount = PRODUCTS_PER_PAGE;
+      renderCards();
+    }
+
+    // Mostrar más productos (Paginación)
+    function loadMoreProducts() {
+      visibleCount += PRODUCTS_PER_PAGE;
+      renderCards();
+    }
+
+    // Dibujar tarjetas con Lazy Loading
+    function renderCards() {
       const grid = document.getElementById('product-grid');
       const count = document.getElementById('product-count');
       const noResults = document.getElementById('no-results');
+      const loadMoreBox = document.getElementById('load-more-container');
+      const pageInfo = document.getElementById('pagination-info');
 
-      count.textContent = `${products.length} disponibles`;
+      count.textContent = `${currentFiltered.length} productos`;
 
-      if (products.length === 0) {
+      if (currentFiltered.length === 0) {
         grid.innerHTML = '';
         noResults.classList.remove('hidden');
+        loadMoreBox.classList.add('hidden');
         return;
       }
       noResults.classList.add('hidden');
 
-      grid.innerHTML = products.map((item, index) => {
+      const slice = currentFiltered.slice(0, visibleCount);
+
+      if (currentFiltered.length > visibleCount) {
+        loadMoreBox.classList.remove('hidden');
+        pageInfo.textContent = `Mostrando ${slice.length} de ${currentFiltered.length} productos`;
+      } else {
+        loadMoreBox.classList.add('hidden');
+      }
+
+      grid.innerHTML = slice.map((item, index) => {
         const status = getStatusInfo(item.Estado);
         const images = parseImages(item);
         const coverImg = images[0];
@@ -211,31 +412,31 @@
         return `
           <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between hover:border-slate-700 transition shadow-sm">
             <div>
-              <!-- Imagen Clickable para Zoom / Galería -->
               <div 
                 onclick="openModal(${index})" 
-                class="relative w-full h-48 bg-slate-950 overflow-hidden cursor-pointer group"
-                title="Toca para ver fotos en grande"
+                class="relative w-full h-56 bg-slate-950 overflow-hidden cursor-pointer group"
+                title="Toca para ampliar"
               >
                 <img 
                   src="${coverImg}" 
                   alt="${item.Producto}" 
+                  loading="lazy"
+                  decoding="async"
                   class="w-full h-full object-cover transition duration-300 group-hover:scale-105"
-                  onerror="this.src='https://placehold.co/400x300/1e293b/94a3b8?text=Sin+Imagen'"
+                  onerror="this.src='https://placehold.co/400x500/1e293b/94a3b8?text=Sin+Imagen'"
                 >
-                <span class="absolute top-2 right-2 text-[11px] font-medium px-2 py-0.5 rounded border backdrop-blur ${status.color}">
+                <span class="absolute top-2 right-2 text-[11px] font-medium px-2 py-0.5 rounded border backdrop-blur-md ${status.color}">
                   ${status.text}
                 </span>
 
                 ${images.length > 1 ? `
-                  <span class="absolute bottom-2 right-2 bg-black/75 text-white text-[10px] font-semibold px-2 py-0.5 rounded-md border border-white/20 flex items-center gap-1">
+                  <span class="absolute bottom-2 right-2 bg-black/75 text-white text-[10px] font-semibold px-2 py-0.5 rounded-md border border-white/20">
                     📷 1/${images.length}
                   </span>
                 ` : ''}
 
-                <!-- Efecto visual al pasar el mouse -->
                 <div class="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                  <span class="bg-slate-900/90 text-white text-[11px] font-medium px-2.5 py-1 rounded-full border border-slate-700">🔍 Ver fotos</span>
+                  <span class="bg-slate-900/90 text-white text-[11px] font-medium px-2.5 py-1 rounded-full border border-slate-700">🔍 Ampliar</span>
                 </div>
               </div>
 
@@ -251,7 +452,7 @@
               <a 
                 href="${status.isAgotado ? '#' : waLink}" 
                 target="${status.isAgotado ? '_self' : '_blank'}"
-                class="block w-full text-center text-xs py-2 px-3 rounded-lg font-medium transition ${
+                class="block w-full text-center text-xs py-2.5 px-3 rounded-lg font-medium transition ${
                   status.isAgotado 
                     ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
                     : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
@@ -264,28 +465,28 @@
       }).join('');
     }
 
-    // Filtrar búsqueda
-    function filterAndRender() {
-      const term = document.getElementById('search-input').value.toLowerCase().trim();
-      currentFiltered = allProducts.filter(item => {
-        const matchesCategory = activeCategory === 'all' || item['Categoría'] === activeCategory;
-        const matchesSearch = 
-          (item.Producto && item.Producto.toLowerCase().includes(term)) ||
-          (item['Categoría'] && item['Categoría'].toLowerCase().includes(term)) ||
-          (item.Descripción && item.Descripción.toLowerCase().includes(term));
-        return matchesCategory && matchesSearch;
-      });
-      renderCards(currentFiltered);
-    }
-
+    // Eventos de filtrado y orden
     document.getElementById('search-input').addEventListener('input', filterAndRender);
+    document.getElementById('status-filter').addEventListener('change', filterAndRender);
+    document.getElementById('sort-select').addEventListener('change', filterAndRender);
+
+    // Mostrar/ocultar botón de volver arriba
+    window.addEventListener('scroll', () => {
+      const btn = document.getElementById('scroll-top-btn');
+      if (window.scrollY > 400) {
+        btn.classList.remove('hidden');
+      } else {
+        btn.classList.add('hidden');
+      }
+    });
 
     // ==========================================
-    // 🖼️ FUNCIONALIDAD DEL MODAL / ZOOM
+    // 🖼️ FUNCIONES DEL MODAL DE PRODUCTO
     // ==========================================
     function openModal(index) {
       activeModalItem = currentFiltered[index];
       activeImageIndex = 0;
+      imageFitCover = true; // Por defecto llena la columna sin bordes laterales
       updateModalView();
       document.getElementById('product-modal').classList.remove('hidden');
       document.body.classList.add('overflow-hidden');
@@ -301,16 +502,36 @@
       if (e.target.id === 'product-modal') closeModal();
     }
 
+    function toggleImageFit(e) {
+      if (e) e.stopPropagation();
+      imageFitCover = !imageFitCover;
+      const img = document.getElementById('modal-img');
+      const btn = document.getElementById('fit-toggle-btn');
+      if (imageFitCover) {
+        img.classList.remove('object-contain');
+        img.classList.add('object-cover');
+        btn.textContent = '⛶ Ajustar foto';
+      } else {
+        img.classList.remove('object-cover');
+        img.classList.add('object-contain');
+        btn.textContent = '⛶ Llenar bordes';
+      }
+    }
+
     function updateModalView() {
       if (!activeModalItem) return;
       const images = parseImages(activeModalItem);
       const status = getStatusInfo(activeModalItem.Estado);
+      const currentImgUrl = images[activeImageIndex];
 
-      // Imagen grande
       const imgElem = document.getElementById('modal-img');
-      imgElem.src = images[activeImageIndex];
+      const blurElem = document.getElementById('modal-bg-blur');
+      imgElem.src = currentImgUrl;
+      blurElem.src = currentImgUrl;
 
-      // Flechas y contador
+      imgElem.className = `relative z-10 w-full h-full transition-all duration-200 ${imageFitCover ? 'object-cover' : 'object-contain'}`;
+      document.getElementById('fit-toggle-btn').textContent = imageFitCover ? '⛶ Ajustar foto' : '⛶ Llenar bordes';
+
       const prevBtn = document.getElementById('modal-prev-btn');
       const nextBtn = document.getElementById('modal-next-btn');
       const counter = document.getElementById('modal-counter');
@@ -326,22 +547,21 @@
         counter.classList.add('hidden');
       }
 
-      // Miniaturas
       const thumbs = document.getElementById('modal-thumbs');
       if (images.length > 1) {
         thumbs.classList.remove('hidden');
         thumbs.innerHTML = images.map((url, i) => `
           <img 
             src="${url}" 
+            loading="lazy"
             onclick="selectModalImage(${i})" 
-            class="h-14 w-14 object-cover rounded-lg border-2 cursor-pointer transition ${i === activeImageIndex ? 'border-indigo-500 scale-105' : 'border-transparent opacity-60 hover:opacity-100'}"
+            class="h-14 w-14 object-cover rounded-lg border-2 cursor-pointer shrink-0 transition ${i === activeImageIndex ? 'border-indigo-500 scale-105' : 'border-transparent opacity-60 hover:opacity-100'}"
           >
         `).join('');
       } else {
         thumbs.classList.add('hidden');
       }
 
-      // Textos y botones
       document.getElementById('modal-category').textContent = activeModalItem['Categoría'] || 'General';
       document.getElementById('modal-title').textContent = activeModalItem.Producto;
       document.getElementById('modal-desc').textContent = activeModalItem.Descripción || 'Sin descripción detallada.';
@@ -384,8 +604,19 @@
       updateModalView();
     }
 
-    // Navegación con teclado (ESC, Izquierda, Derecha)
+    // Modal de Información
+    function openInfoModal() {
+      document.getElementById('info-modal').classList.remove('hidden');
+    }
+    function closeInfoModal() {
+      document.getElementById('info-modal').classList.add('hidden');
+    }
+
+    // Teclado
     window.addEventListener('keydown', (e) => {
+      if (!document.getElementById('info-modal').classList.contains('hidden') && e.key === 'Escape') {
+        closeInfoModal();
+      }
       const modal = document.getElementById('product-modal');
       if (modal.classList.contains('hidden')) return;
       if (e.key === 'Escape') closeModal();
@@ -393,7 +624,7 @@
       if (e.key === 'ArrowRight') nextImage();
     });
 
-    // Deslizar con el dedo en teléfonos (Swipe)
+    // Swipe táctil en teléfonos
     let touchStartX = 0;
     const container = document.getElementById('modal-img-container');
     container.addEventListener('touchstart', (e) => {
